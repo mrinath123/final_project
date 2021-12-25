@@ -10,9 +10,11 @@ from CrossAttention import CrossAttention, MLP
 from Backbone import Backbone
 
 class Encoder(nn.Module):
-    def __init__(self):
+    def __init__(self,name , pretrained=False):
         super().__init__()
-        self.backbone = Backbone()
+        self.n = name
+        self.p = pretrained
+        self.backbone = Backbone(self.n , pretrained = self.p)
         self.cross_attn = CrossAttention()
 
         self.ln1 = nn.LayerNorm(normalized_shape=48, eps=1e-6)
@@ -46,28 +48,38 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.layer = nn.Sequential(
-            nn.ConvTranspose2d(48, 64, 2, stride=2),
-            nn.ReLU(),
-            nn.AdaptiveMaxPool2d((20, 20)),
-            nn.ConvTranspose2d(64, 16, 2, stride=2),
-            nn.ReLU(),
-            nn.AdaptiveMaxPool2d((50, 50)))
-        self.up = nn.ConvTranspose2d(16, 1, 2, stride=2)
+        self.cnv1 = nn.Conv2d(48,48,1)
+        self.cnv2 = nn.Conv2d(48,32,1)
+        self.cnv3 = nn.Conv2d(32,16,1)
+        self.cnv4 = nn.Conv2d(16,1,1)
+        self.cnv5 = nn.Conv2d(1,1,1)
+        self.pool = nn.AdaptiveMaxPool2d((100, 100))
 
     def forward(self, x):
+      
         x = x.permute(0, 2, 1)
         x = x.view(x.shape[0], -1, 8, 8)
-        x = self.layer(x)
-        x = F.sigmoid(self.up(x))
+    
+        x = F.upsample(x, scale_factor=2, mode='nearest')
+        x = F.relu(self.cnv1(x))
+        x = F.upsample(x, scale_factor=2, mode='nearest')
+        x = F.relu(self.cnv2(x))
+        x = F.upsample(x, scale_factor=2, mode='nearest')
+        x = F.relu(self.cnv3(x))
+        x = F.upsample(x, scale_factor=2, mode='nearest')
+        x = F.relu(self.cnv4(x))
+        x = self.pool(x)
+        x = F.sigmoid(self.cnv5(x))
 
         return x
 
 
 class TrackNet(nn.Module):
-    def __init__(self):
+    def __init__(self,name , pretrained=False):
         super().__init__()
-        self.enc = Encoder()
+        self.n = name
+        self.p = pretrained
+        self.enc = Encoder(self.n , pretrained = self.p)
         self.dec = Decoder()
 
     def forward(self, image, patch):
@@ -80,7 +92,7 @@ if __name__ == "__main__":
     i1 = torch.randn(1, 3, 224, 224)
     i2 = torch.randn(1, 3, 64, 64)
 
-    b = TrackNet()
+    b = TrackNet("densenet")
     op = b(i1, i2)
 
     print(op.shape)
