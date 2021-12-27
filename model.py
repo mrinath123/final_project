@@ -1,26 +1,26 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-from CrossAttention import CrossAttention, MLP
 from Backbone import Backbone
+from Transformer_block import T_block
+
 
 class Encoder(nn.Module):
-    def __init__(self,name , pretrained=False):
+    def __init__(self,name , pretrained=False,num_layers = 5):
         super().__init__()
         self.n = name
         self.p = pretrained
+        self.nl = num_layers
         self.backbone = Backbone(self.n , pretrained = self.p)
-        self.cross_attn = CrossAttention()
-
-        self.ln1 = nn.LayerNorm(normalized_shape=48, eps=1e-6)
-        self.ln2 = nn.LayerNorm(normalized_shape=48, eps=1e-6)
-
-        self.mlp = MLP()
+        
+        self.layers = nn.ModuleList(
+            [
+                T_block() for _ in range(self.nl)
+            ]
+        )
 
     def forward(self, image, patch):
         Xq, Xk, Xv = self.backbone(image, patch)
@@ -36,13 +36,10 @@ class Encoder(nn.Module):
         Xv = Xv.permute(0, 2, 1)
         # shape -> (n_batch, seq,len , dim)
 
-        attn_op, _ = self.cross_attn(Xq, Xk, Xv)
-        attn_op = Xq + attn_op
-        op = self.ln1(attn_op)
-        mlp_op = self.mlp(op)
-        mlp_op = self.ln2(mlp_op + op)
+        for layer in self.layers:
+            Xq = layer(Xq, Xk, Xv)
 
-        return mlp_op
+        return Xq
 
 
 class Decoder(nn.Module):
@@ -59,7 +56,6 @@ class Decoder(nn.Module):
       
         x = x.permute(0, 2, 1)
         x = x.view(x.shape[0], -1, 8, 8)
-    
         x = F.upsample(x, scale_factor=2, mode='nearest')
         x = F.relu(self.cnv1(x))
         x = F.upsample(x, scale_factor=2, mode='nearest')
@@ -92,7 +88,7 @@ if __name__ == "__main__":
     i1 = torch.randn(1, 3, 224, 224)
     i2 = torch.randn(1, 3, 64, 64)
 
-    b = TrackNet("densenet")
+    b = TrackNet("mobilnet")
     op = b(i1, i2)
 
     print(op.shape)
