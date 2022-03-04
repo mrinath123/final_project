@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import timm
+import torch.nn.functional as F
 
 #for image densenet
 class CNN1(nn.Module):
@@ -8,15 +9,14 @@ class CNN1(nn.Module):
         super().__init__()
         self.inc = in_channels
         self.op = op_shape
-        self.cnv1 = nn.Conv2d(self.inc, 48, 1)
+        self.cnv1 = nn.Conv2d(self.inc, 48, 2)
         self.relu = nn.PReLU()
         self.pool = nn.AdaptiveAvgPool2d((self.op, self.op))
         self.cnv2 = nn.Conv2d(48, 48, 1)
         self.norm = nn.BatchNorm2d(48)
 
     def forward(self, x):
-        x = self.cnv1(x)
-        x = self.relu(x)
+        x = F.relu(self.cnv1(x))
         x = self.pool(x)
         x = self.cnv2(x)
         x = self.relu(x)
@@ -29,15 +29,14 @@ class CNN2(nn.Module):
         super().__init__()
         self.inc = in_channels
         self.op = op_shape
-        self.cnv1 = nn.Conv2d(self.inc, 48, 1)
+        self.cnv1 = nn.Conv2d(self.inc, 48, 2)
         self.relu = nn.PReLU()
         self.pool = nn.AdaptiveAvgPool2d((self.op, self.op))
         self.cnv2 = nn.Conv2d(48, 48, 1)
         self.norm = nn.BatchNorm2d(48)
 
     def forward(self, x):
-        x = self.cnv1(x)
-        x = self.relu(x)
+        x = F.relu(self.cnv1(x))
         x = self.pool(x)
         x = self.cnv2(x)
         x = self.relu(x)
@@ -57,7 +56,7 @@ class Backbone(nn.Module):
         self.cnn2 = CNN2()
 
     def forward(self, image, patch):
-        
+
         image = self.back1(image) # b x 1792 x 14 x 14 
         image = self.cnn1(image[3])
 
@@ -77,5 +76,4 @@ if __name__ == "__main__":
 
     b = Backbone()
     q, k, v = b(i1, i2)
-
     print(q.shape, k.shape, v.shape)
